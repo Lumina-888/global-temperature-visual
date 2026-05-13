@@ -1,46 +1,85 @@
 <!doctype html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>全球气温可视化</title>
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='css/style.css') }}"
-        />
-        <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-    </head>
-    <body>
-        <div class="page">
-            <h1>全球气温变化折线图</h1>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>全球气温变化可视化分析大屏</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <!-- ECharts 主 CDN + 备用 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+    <script>
+        if (typeof echarts === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"><\/script>');
+        }
+    </script>
+</head>
+<body>
+    <!-- 调试面板 -->
+    <div id="debugBar" style="background:#1a1a2e;color:#ff9800;padding:4px 16px;font-size:12px;font-family:monospace;border-bottom:1px solid #333;">
+        ⏳ 页面加载中... (如果此文字不变，说明 JS 未执行)
+    </div>
 
-            <div class="toolbar">
-                <label for="minYear">起始年份：</label>
-                <input
-                    id="minYear"
-                    type="number"
-                    value="1850"
-                    min="1700"
-                    max="2100"
-                />
-                <button id="reloadBtn">刷新</button>
-            </div>
-
-            <div id="globalTempChart" style="width: 100%; height: 520px"></div>
-            <div id="msg" class="msg"></div>
-
-            <h1>城市年平均温度柱状图</h1>
-            <div class="toolbar">
-                <label for="cityYear">年份：</label>
-                <input id="cityYear" type="number" value="2013" min="1700" max="2100" />
-                <label for="cityLimit">城市数量：</label>
-                <input id="cityLimit" type="number" value="20" min="5" max="50" />
-                <button id="reloadCityBtn">刷新城市图</button>
-            </div>
-            <div id="cityTempChart" style="width: 100%; height: 520px"></div>
-            <div id="cityMsg" class="msg"></div>
+    <header class="header">
+        <h1>全球气温变化可视化分析大屏</h1>
+        <div class="filter-bar">
+            <label>起始年份 <input id="startYear" type="number" value="1900" min="1750" max="2100" /></label>
+            <label>结束年份 <input id="endYear" type="number" value="2013" min="1750" max="2100" /></label>
+            <button id="applyFilter">应用筛选</button>
+            <span id="filterMsg" class="filter-msg"></span>
         </div>
+    </header>
 
-        <script src="{{ url_for('static', filename='js/global_temp_line.js') }}"></script>
-    </body>
+    <main class="dashboard">
+        <!-- Row 1 -->
+        <section class="card card-wide">
+            <div class="card-title">全球温度变化趋势（陆地 / 海陆综合 / 最高 / 最低）</div>
+            <div id="chartGlobalAnnual" class="chart-box" style="min-height:380px"></div>
+            <div class="card-status" id="statusGlobal">⏳ 等待加载</div>
+        </section>
+        <section class="card">
+            <div class="card-title">全球温度距平</div>
+            <div id="chartAnomaly" class="chart-box" style="min-height:380px"></div>
+            <div class="card-status" id="statusAnomaly">⏳ 等待加载</div>
+        </section>
+
+        <!-- Row 2 -->
+        <section class="card">
+            <div class="card-title">全球月均温季节周期</div>
+            <div id="chartMonthly" class="chart-box" style="min-height:380px"></div>
+            <div class="card-status" id="statusMonthly">⏳ 等待加载</div>
+        </section>
+        <section class="card">
+            <div class="card-title">全球各国平均温度</div>
+            <div id="chartWorldMap" class="chart-box" style="min-height:420px"></div>
+            <div class="map-slider">
+                <label>年份：<span id="mapYearLabel">2013</span></label>
+                <input id="mapYearInput" type="range" min="1850" max="2013" value="2013" step="1" />
+            </div>
+            <div class="card-status" id="statusMap">⏳ 等待加载</div>
+        </section>
+
+        <!-- Row 3 -->
+        <section class="card">
+            <div class="card-title">纬度带温度变化趋势对比</div>
+            <div id="chartLatband" class="chart-box" style="min-height:380px"></div>
+            <div class="card-status" id="statusLatband">⏳ 等待加载</div>
+        </section>
+        <section class="card">
+            <div class="card-title">城市平均温度排名</div>
+            <div id="chartCityRanking" class="chart-box" style="min-height:380px"></div>
+            <div class="city-controls">
+                <label>年份 <input id="cityYearInput" type="number" value="2013" min="1750" max="2013" /></label>
+                <label>数量 <input id="cityLimitInput" type="number" value="15" min="5" max="50" /></label>
+                <button id="reloadCityBtn">刷新</button>
+            </div>
+            <div class="card-status" id="statusCity">⏳ 等待加载</div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        数据来源：Berkeley Earth &nbsp;|&nbsp; 数据范围：1750–2013
+    </footer>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
 </html>
