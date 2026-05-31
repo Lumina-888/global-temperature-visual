@@ -17,7 +17,7 @@
   // ── 状态 ──────────────────────────────────────────
   let startYear = 1900;
   let worldGeoJson = null;
-  let mapYear = 2013;
+  let mapYear = 2024;
   const countryDataCache = {};
   let mapLoading = false;
 
@@ -145,6 +145,11 @@
       .then(r => r.json())
       .then(d => {
         dbg("全球年均温: " + d.count + " 条记录");
+        // 动态更新结束年份
+        if (d.years && d.years.length > 0) {
+          const maxYr = d.years[d.years.length - 1];
+          if (elEndYear) elEndYear.value = maxYr;
+        }
         chartGlobal.setOption({
           backgroundColor: DARK_BG,
           title: { text: "全球温度变化趋势", left: "center", textStyle: { color: "#e0e0e0", fontSize: 16, fontWeight: "bold" } },
@@ -366,7 +371,7 @@
   // ── 6. 城市排名 ────────────────────────────────────
   const loadCityRanking = () => {
     if (!chartCity) return;
-    const year = parseInt(elCityYear.value, 10) || 2013;
+    const year = parseInt(elCityYear.value, 10) || 2024;
     const limit = parseInt(elCityLimit.value, 10) || 15;
     setStatus("statusCity", "正在加载...", "loading");
     chartCity.showLoading(loadingOpts);
