@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "Bash(uv python *)",
+      "Bash(unset VIRTUAL_ENV)",
+      "Bash(.venv/scripts/python.exe -c \"import pandas; print\\('pandas OK'\\)\")",
+      "Bash(.venv/scripts/python.exe -c \"import uvicorn; print\\('uvicorn OK'\\)\")",
+      "Bash(.venv/scripts/python.exe -c \"import numpy; import pandas; from src.data_engine import DataEngine; print\\('All imports OK'\\)\")",
+      "Bash(.venv/scripts/python.exe -m uvicorn src.app:app --host 0.0.0.0 --port 5000)"
+    ]
+  }
+}
