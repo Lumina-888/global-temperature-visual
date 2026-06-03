@@ -9,6 +9,12 @@ from fastapi.staticfiles import StaticFiles
 
 from .data_engine import DataEngine
 
+
+def _nan_to_none(vals):
+    """将列表中的 NaN 转为 None，确保 JSON 可序列化"""
+    return [None if (isinstance(v, float) and math.isnan(v)) else v for v in vals]
+
+
 app = FastAPI(title="全球气温可视化")
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -39,12 +45,12 @@ async def api_global_annual(min_year: int = Query(1850, ge=0)):
     return {
         "min_year": min_year,
         "years": df["year"].astype(int).tolist(),
-        "land_avg": df["land_avg"].round(1).tolist(),
-        "land_uncertainty": df["land_uncertainty"].round(3).tolist(),
-        "land_max": df["land_max"].round(1).tolist(),
-        "land_min": df["land_min"].round(1).tolist(),
-        "land_ocean_avg": df["land_ocean_avg"].round(1).tolist(),
-        "land_ocean_uncertainty": df["land_ocean_uncertainty"].round(3).tolist(),
+        "land_avg": _nan_to_none(df["land_avg"].round(1).tolist()),
+        "land_uncertainty": _nan_to_none(df["land_uncertainty"].round(3).tolist()),
+        "land_max": _nan_to_none(df["land_max"].round(1).tolist()),
+        "land_min": _nan_to_none(df["land_min"].round(1).tolist()),
+        "land_ocean_avg": _nan_to_none(df["land_ocean_avg"].round(1).tolist()),
+        "land_ocean_uncertainty": _nan_to_none(df["land_ocean_uncertainty"].round(3).tolist()),
         "count": len(df),
     }
 

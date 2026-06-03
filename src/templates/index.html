@@ -23,7 +23,7 @@
         <h1>全球气温变化可视化分析大屏</h1>
         <div class="filter-bar">
             <label>起始年份 <input id="startYear" type="number" value="1900" min="1750" max="2100" /></label>
-            <label>结束年份 <input id="endYear" type="number" value="2013" min="1750" max="2100" /></label>
+            <label>结束年份 <input id="endYear" type="number" value="2026" min="1750" max="2100" /></label>
             <button id="applyFilter">应用筛选</button>
             <span id="filterMsg" class="filter-msg"></span>
         </div>
@@ -52,8 +52,8 @@
             <div class="card-title">全球各国平均温度</div>
             <div id="chartWorldMap" class="chart-box" style="min-height:420px"></div>
             <div class="map-slider">
-                <label>年份：<span id="mapYearLabel">2013</span></label>
-                <input id="mapYearInput" type="range" min="1850" max="2013" value="2013" step="1" />
+                <label>年份：<span id="mapYearLabel">2024</span></label>
+                <input id="mapYearInput" type="range" min="1850" max="2024" value="2024" step="1" />
             </div>
             <div class="card-status" id="statusMap">⏳ 等待加载</div>
         </section>
@@ -85,7 +85,7 @@
     </main>
 
     <footer class="footer">
-        数据来源：Berkeley Earth &nbsp;|&nbsp; 数据范围：1750–2013
+        数据来源：NASA GISTEMP v4 + Berkeley Earth &nbsp;|&nbsp; 数据范围：1750–2026
     </footer>
 
     <script src="/static/js/dashboard.js"></script>

@@ -36,7 +36,9 @@ class DataEngine:
             "LandAndOceanAverageTemperatureUncertainty",
         ]
         df = self._load_csv("GlobalTemperatures.csv")
-        filtered = df.loc[df["year"] >= min_year, cols].dropna()
+        filtered = df.loc[df["year"] >= min_year, cols]
+        # 只丢弃完全没有 LandAndOcean 数据的行，允许 2016+ 仅有海陆综合温
+        filtered = filtered.dropna(subset=["LandAndOceanAverageTemperature"]).copy()
         grouped = (
             filtered.groupby("year", as_index=False)
             .mean()
