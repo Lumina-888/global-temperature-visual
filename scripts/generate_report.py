@@ -1,46 +1,127 @@
-"""生成项目答辩 Word 文档"""
+"""
+generate_report.py — 项目答辩 Word 文档生成器
+================================================
+这个脚本用 python-docx 库自动生成一份专业的 Word 文档，包含：
+  - 封面（标题、副标题、技术栈说明）
+  - 目录
+  - 项目概述
+  - 数据采集与处理流程
+  - 系统架构设计
+  - 后端模块说明
+  - 前端可视化模块
+  - 关键技术难点与解决方案
+  - 项目总结
+  - 附录（文件清单）
+
+运行方式：
+    cd scripts/
+    python generate_report.py
+
+输出：
+    项目根目录/答辩报告_全球气温可视化.docx
+
+python-docx 基础概念：
+  Document  = 整个 Word 文档
+  Paragraph = 一段文字
+  Run       = 一段文字中的"连续同格式片段"
+              比如一句话里有两个字加粗了，就是 3 个 Run
+  Table     = 表格
+"""
+
 from pathlib import Path
 
-from docx import Document
-from docx.shared import Cm, Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml.ns import qn
+from docx import Document                          # Word 文档对象
+from docx.shared import Cm, Inches, Pt, RGBColor   # 尺寸和颜色单位
+from docx.enum.text import WD_ALIGN_PARAGRAPH      # 段落对齐方式
+from docx.enum.table import WD_TABLE_ALIGNMENT     # 表格对齐方式
+from docx.oxml.ns import qn                        # Word 内部 XML 命名空间工具
 
+
+# ═══════════════════════════════════════════════════════════════
+# 工具函数 — 避免重复代码
+# ═══════════════════════════════════════════════════════════════
 
 def add_heading_styled(doc, text, level):
+    """
+    添加有样式的标题（深蓝色字体）。
+
+    python-docx 的 add_heading() 会创建一个带默认样式的段落。
+    但默认颜色是黑的，我们需要改成深蓝(#1A3C6E)来匹配项目主题色。
+
+    Args:
+        doc:   Document 对象
+        text:  标题文字
+        level: 标题级别（1=一级标题, 2=二级标题, ...）
+
+    Returns:
+        创建的标题段落对象
+    """
     h = doc.add_heading(text, level=level)
+    # add_heading 返回的段落里可能包含多个 run（格式片段）
+    # 遍历所有 run，统一设成深蓝色
     for run in h.runs:
         run.font.color.rgb = RGBColor(0x1A, 0x3C, 0x6E)
     return h
 
 
 def add_code_block(doc, code_text):
-    """添加代码块（灰色背景）"""
+    """
+    添加代码块（灰色背景 + Consolas 字体）。
+
+    在 Word 里做代码块比较麻烦——没有原生的"代码块"功能。
+    需要用底纹（shading）模拟灰色背景。
+
+    实现原理：
+      给段落的 run 添加 XML 属性 w:shd（Word 的底纹元素），
+      设置 fill 颜色为 #F0F0F0（浅灰）。
+
+    Args:
+        doc:       Document 对象
+        code_text: 代码文字（可以包含 \n 换行）
+
+    Returns:
+        创建的段落对象
+    """
     p = doc.add_paragraph()
-    p.paragraph_format.left_indent = Cm(0.5)
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.left_indent = Cm(0.5)      # 左边缩进半厘米
+    p.paragraph_format.space_before = Pt(2)        # 段前间距 2pt（紧凑）
+    p.paragraph_format.space_after = Pt(2)         # 段后间距 2pt
+
     run = p.add_run(code_text)
-    run.font.name = "Consolas"
-    run.font.size = Pt(8)
-    run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
-    # 灰色底纹
-    shd = run._element.rPr
+    run.font.name = "Consolas"                      # 等宽字体，代码看起来整齐
+    run.font.size = Pt(8)                           # 8pt 小字——代码块不需要太大
+    run.font.color.rgb = RGBColor(0x33, 0x33, 0x33) # 深灰文字
+
+    # ── 添加灰色底纹 ──
+    # python-docx 没有直接给 run 设置背景色的 API，
+    # 需要手动操作底层 XML 元素（lxml）
+    shd = run._element.rPr  # rPr = Run Properties（run 的属性容器）
     if shd is None:
         from lxml import etree
         shd = etree.SubElement(run._element, qn('w:rPr'))
-    shd_elem = shd.find(qn('w:shd'))
+
+    shd_elem = shd.find(qn('w:shd'))  # shd = Shading（底纹）
     if shd_elem is None:
         from lxml import etree
         shd_elem = etree.SubElement(shd, qn('w:shd'))
-    shd_elem.set(qn('w:fill'), 'F0F0F0')
-    shd_elem.set(qn('w:val'), 'clear')
+
+    shd_elem.set(qn('w:fill'), 'F0F0F0')  # 填充色 = 浅灰
+    shd_elem.set(qn('w:val'), 'clear')     # 底纹类型 = 纯色填充
+
     return p
 
 
 def set_cell_shading(cell, color):
-    shd = cell._element.get_or_add_tcPr()
+    """
+    给表格单元格设置背景色。
+
+    同样需要操作底层 XML——python-docx 的表格 API 比较简单。
+
+    Args:
+        cell:  单元格对象
+        color: 颜色值（如 '1A3C6E' 深蓝、'EBF0F7' 浅蓝灰）
+    """
+    shd = cell._element.get_or_add_tcPr()  # tcPr = Table Cell Properties
     from lxml import etree
     shd_elem = shd.find(qn('w:shd'))
     if shd_elem is None:
@@ -50,81 +131,118 @@ def set_cell_shading(cell, color):
 
 
 def add_table_with_style(doc, headers, rows, col_widths=None):
+    """
+    添加带样式的表格。
+
+    表格样式：
+      - 表头：深蓝背景、白色粗体文字、居中
+      - 数据行：交替背景色（斑马纹）、8.5pt 小字
+      - 可选列宽设置
+
+    Args:
+        doc:        Document 对象
+        headers:    表头列表，如 ["姓名", "年龄", "城市"]
+        rows:       数据行列表，如 [["张三", "25", "北京"], ["李四", "30", "上海"]]
+        col_widths: 可选，每列的宽度（厘米），如 [3.0, 2.0, 5.0]
+
+    Returns:
+        创建的表格对象
+    """
+    # doc.add_table(行数, 列数)
+    # 行数 = 1(表头) + 数据行数
     table = doc.add_table(rows=1 + len(rows), cols=len(headers))
-    table.style = 'Table Grid'
+    table.style = 'Table Grid'  # 使用 Word 内置的表格样式（带边框）
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    # 表头
+
+    # ── 表头 ──
     for i, h in enumerate(headers):
         cell = table.rows[0].cells[i]
         cell.text = h
         for p in cell.paragraphs:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER  # 水平居中
             for run in p.runs:
-                run.font.bold = True
+                run.font.bold = True                  # 加粗
                 run.font.size = Pt(9)
-                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-        set_cell_shading(cell, '1A3C6E')
-    # 数据行
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)  # 白色字
+        set_cell_shading(cell, '1A3C6E')  # 深蓝背景
+
+    # ── 数据行 ──
     for r, row in enumerate(rows):
         for c, val in enumerate(row):
-            cell = table.rows[r + 1].cells[c]
+            cell = table.rows[r + 1].cells[c]  # r+1 跳过表头行
             cell.text = str(val)
             for p in cell.paragraphs:
                 for run in p.runs:
                     run.font.size = Pt(8.5)
+            # 斑马纹：偶数行（r % 2 == 0）加浅蓝灰背景
             if r % 2 == 0:
                 set_cell_shading(cell, 'EBF0F7')
+
+    # ── 设置列宽（可选）──
     if col_widths:
         for i, w in enumerate(col_widths):
             for row in table.rows:
                 row.cells[i].width = Cm(w)
-    doc.add_paragraph()
+
+    doc.add_paragraph()  # 表格后面加个空行，防止和下段文字贴太紧
     return table
 
 
+# ═══════════════════════════════════════════════════════════════
+# 主函数 — 生成完整文档
+# ═══════════════════════════════════════════════════════════════
+
 def main():
+    # ═══════════════════════════════════════════════════════════
+    # 创建文档 + 设置默认样式
+    # ═══════════════════════════════════════════════════════════
     doc = Document()
 
-    # 设置默认字体
+    # 设置 Normal 样式（= 正文默认样式）
     style = doc.styles['Normal']
-    style.font.name = '微软雅黑'
-    style.font.size = Pt(10.5)
-    style.paragraph_format.line_spacing = 1.5
-    style.paragraph_format.space_after = Pt(4)
-    # 设置中文字体
+    style.font.name = '微软雅黑'          # 西文字体
+    style.font.size = Pt(10.5)           # 五号字
+    style.paragraph_format.line_spacing = 1.5  # 1.5 倍行距
+    style.paragraph_format.space_after = Pt(4) # 段后 4pt 间距
+    # 设置中文字体（Word 里中西文字体是分开的）
     style.element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
 
-    # 页面设置
+    # 页面设置（A4 纸标准）
     section = doc.sections[0]
-    section.page_width = Cm(21)
-    section.page_height = Cm(29.7)
+    section.page_width = Cm(21)          # A4 宽
+    section.page_height = Cm(29.7)       # A4 高
     section.left_margin = Cm(2.5)
     section.right_margin = Cm(2.5)
     section.top_margin = Cm(2.5)
     section.bottom_margin = Cm(2.5)
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 封面
-    # ════════════════════════════════════════════════════════════
-    for _ in range(6):
-        doc.add_paragraph()
+    # ═══════════════════════════════════════════════════════════
+    # 用 6 个空行把标题推到页面中间偏上
 
+    for _ in range(6):
+        doc.add_paragraph()  # 空行
+
+    # 主标题
     title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER  # 居中
     run = title.add_run("全球气温变化可视化分析系统")
     run.font.size = Pt(26)
     run.font.bold = True
-    run.font.color.rgb = RGBColor(0x1A, 0x3C, 0x6E)
+    run.font.color.rgb = RGBColor(0x1A, 0x3C, 0x6E)  # 深蓝
 
+    # 副标题
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = subtitle.add_run("—— 基于 NASA GISTEMP v4 与 Berkeley Earth 数据集")
     run.font.size = Pt(14)
-    run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+    run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)  # 中灰
 
     doc.add_paragraph()
     doc.add_paragraph()
 
+    # 项目信息
     info_lines = [
         "技术栈：Python FastAPI + ECharts + Pandas",
         "数据来源：NASA GISTEMP v4 / GHCN v4 台站数据 / Berkeley Earth",
@@ -137,12 +255,13 @@ def main():
         run.font.size = Pt(10)
         run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
 
-    doc.add_page_break()
+    doc.add_page_break()  # 封面结束，换新页
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 目录页
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "目  录", 1)
+
     toc_items = [
         "一、项目概述",
         "二、数据采集与处理",
@@ -170,9 +289,9 @@ def main():
 
     doc.add_page_break()
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 一、项目概述
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "一、项目概述", 1)
 
     doc.add_paragraph(
@@ -191,18 +310,17 @@ def main():
         "城市平均温度排名（交互式年份和数量选择）",
     ]
     for f in features:
-        doc.add_paragraph(f, style='List Bullet')
+        doc.add_paragraph(f, style='List Bullet')  # 项目符号列表
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 二、数据采集与处理
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "二、数据采集与处理", 1)
 
-    # 2.1
+    # 2.1 数据来源
     add_heading_styled(doc, "2.1 数据来源介绍", 2)
-    doc.add_paragraph(
-        "本项目的温度数据来源于两个权威数据集："
-    )
+    doc.add_paragraph("本项目的温度数据来源于两个权威数据集：")
+
     sources = [
         ("NASA GISTEMP v4（戈达德空间研究所地表温度分析第四版）",
          "提供全球月度 L-OTI（Land-Ocean Temperature Index，海陆温度指数）距平数据，"
@@ -215,10 +333,10 @@ def main():
     for title_text, desc in sources:
         p = doc.add_paragraph()
         run = p.add_run(title_text + "：")
-        run.font.bold = True
+        run.font.bold = True  # 来源名称加粗
         p.add_run(desc)
 
-    # 2.2
+    # 2.2 数据采集流程
     add_heading_styled(doc, "2.2 NASA GISTEMP 数据采集流程", 2)
     doc.add_paragraph(
         "为将项目数据从 2013/2015 年更新至最新（2024-2026 年），编写了 "
@@ -254,7 +372,7 @@ def main():
         "因此城市/国家级数据只更新到 2024 年。全球均值数据使用统计插值模型，可更新至 2026 年 4 月。"
     )
 
-    # 2.3
+    # 2.3 数据格式转换
     add_heading_styled(doc, "2.3 数据格式转换要点", 2)
     doc.add_paragraph(
         "GISTEMP 提供的台站数据格式为 Fortran I5 固定宽度格式（每字段 5 字符），"
@@ -263,6 +381,7 @@ def main():
         "ID 前缀转换为标准国家名称。"
     )
 
+    # 数据更新汇总表
     add_table_with_style(doc,
         ["数据集文件", "原有数据截止", "更新后截止", "新增行数", "数据来源"],
         [
@@ -274,9 +393,9 @@ def main():
         col_widths=[4.0, 2.5, 2.5, 2.5, 4.0],
     )
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 三、系统架构设计
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "三、系统架构设计", 1)
 
     add_heading_styled(doc, "3.1 整体架构", 2)
@@ -286,7 +405,7 @@ def main():
         "前端为纯静态 HTML + CSS + JavaScript 单页面应用，使用 ECharts 5 渲染图表。"
     )
 
-    # ASCII 架构图
+    # ASCII 架构图 — 用等宽字体展示数据流向
     arch_text = (
         "┌──────────────────────────────────────────────────┐\n"
         "│             NASA GISTEMP v4 数据源                  │\n"
@@ -327,6 +446,7 @@ def main():
     )
     add_code_block(doc, arch_text)
 
+    # 3.2 技术栈
     add_heading_styled(doc, "3.2 技术栈", 2)
     add_table_with_style(doc,
         ["层次", "技术", "版本", "用途"],
@@ -342,11 +462,12 @@ def main():
         col_widths=[2.5, 3.0, 1.5, 8.5],
     )
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 四、后端模块说明
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "四、后端模块说明", 1)
 
+    # 4.1 app.py
     add_heading_styled(doc, "4.1 FastAPI 路由层 (app.py)", 2)
     doc.add_paragraph(
         "app.py 是系统的 Web 入口，负责初始化 FastAPI 应用、挂载静态文件目录、"
@@ -362,6 +483,7 @@ def main():
     for pt in key_points:
         doc.add_paragraph(pt, style='List Bullet')
 
+    # 4.2 data_engine.py
     add_heading_styled(doc, "4.2 数据引擎层 (data_engine.py)", 2)
     doc.add_paragraph(
         "DataEngine 类封装了所有数据访问逻辑，将 CSV 文件的底层操作与上层 API 解耦。"
@@ -387,6 +509,7 @@ def main():
         "_latband() 方法根据纬度绝对值分类：≤23.5° 为热带，≤66.5° 为温带，>66.5° 为寒带。"
     )
 
+    # 4.3 update_data.py
     add_heading_styled(doc, "4.3 数据更新脚本 (update_data.py)", 2)
     doc.add_paragraph(
         "这是一个独立的命令行脚本（517 行），用于定期从 NASA GISTEMP 下载最新数据"
@@ -413,9 +536,9 @@ def main():
         run.font.size = Pt(9)
         p.add_run(desc)
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 五、前端可视化模块
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "五、前端可视化模块", 1)
 
     add_heading_styled(doc, "5.1 仪表板布局", 2)
@@ -454,9 +577,9 @@ def main():
         "从本地 /static/data/ 加载，并设置了 GitHub 原始文件作为备用数据源。"
     )
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 六、关键技术难点与解决方案
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "六、关键技术难点与解决方案", 1)
 
     challenges = [
@@ -498,14 +621,12 @@ def main():
         add_heading_styled(doc, title_text, 2)
         doc.add_paragraph(desc)
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 七、项目总结
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     add_heading_styled(doc, "七、项目总结", 1)
 
-    doc.add_paragraph(
-        "本项目实现了一个功能完整的全球气温可视化分析系统，具有以下特点："
-    )
+    doc.add_paragraph("本项目实现了一个功能完整的全球气温可视化分析系统，具有以下特点：")
 
     summary_points = [
         "数据权威性：整合 NASA GISTEMP v4 和 Berkeley Earth 两大权威气候数据集，"
@@ -524,9 +645,9 @@ def main():
         "幅度远高于热带地区（北极放大效应）。这些观察与国际气候科学界的研究结论高度一致。"
     )
 
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     # 附录：项目文件清单
-    # ════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════
     doc.add_page_break()
     add_heading_styled(doc, "附录：项目文件清单", 1)
 
@@ -545,7 +666,9 @@ def main():
         col_widths=[5.5, 1.5, 8.5],
     )
 
-    # 保存
+    # ═══════════════════════════════════════════════════════════
+    # 保存文档
+    # ═══════════════════════════════════════════════════════════
     output_path = Path(__file__).resolve().parent.parent / "答辩报告_全球气温可视化.docx"
     doc.save(str(output_path))
     print(f"✓ 文档已生成: {output_path}")

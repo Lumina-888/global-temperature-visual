@@ -1,57 +1,104 @@
+<!--
+  这个文件是网站的"骨架"——就像盖房子的钢筋框架
+  它告诉浏览器：页面上有什么内容、按什么顺序摆放
+  真正的样式（颜色、大小）在 style.css 里，交互逻辑在 JS 文件里
+-->
 <!doctype html>
 <html lang="zh-CN">
 <head>
+    <!-- 字符编码：告诉浏览器用 UTF-8 来读这个文件，否则中文会变乱码 -->
     <meta charset="UTF-8" />
+    <!-- 视口设置：让页面在手机上也能正常显示，不会缩成一团 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 浏览器标签页上显示的文字 -->
     <title>全球气温变化可视化分析大屏</title>
+    <!-- 引入样式表：就像给房子刷墙、铺地板 -->
     <link rel="stylesheet" href="/static/css/style.css" />
-    <!-- ECharts 主 CDN + 备用 -->
+    <!--
+      ECharts 图表库（画图用的工具箱）
+      先从国内 CDN 加载，速度快
+      如果加载失败（比如 CDN 挂了），换成备用地址
+    -->
     <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
     <script>
+        // 检测 ECharts 是否加载成功——如果没成功，换备用地址再试一次
         if (typeof echarts === 'undefined') {
             document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"><\/script>');
         }
     </script>
 </head>
 <body>
-    <!-- 调试面板 -->
+    <!--
+      ── 调试栏 ────────────────────────────────
+      页面最顶部的状态条，显示加载进度
+      开发时用它看"程序跑到哪一步了"
+      如果一直显示"页面加载中..."，说明 JS 代码出问题了
+    -->
     <div id="debugBar" style="background:#1a1a2e;color:#ff9800;padding:4px 16px;font-size:12px;font-family:monospace;border-bottom:1px solid #333;">
         ⏳ 页面加载中... (如果此文字不变，说明 JS 未执行)
     </div>
 
+    <!--
+      ── 头部 ──────────────────────────────────
+      页面标题 + 年份筛选器
+      用户可以在这里设置"只看 1950 到 2000 年的数据"
+    -->
     <header class="header">
         <h1>全球气温变化可视化分析大屏</h1>
+        <!-- 筛选栏：起始年份、结束年份、应用按钮 -->
         <div class="filter-bar">
             <label>起始年份 <input id="startYear" type="number" value="1900" min="1750" max="2100" /></label>
             <label>结束年份 <input id="endYear" type="number" value="2026" min="1750" max="2100" /></label>
             <button id="applyFilter">应用筛选</button>
+            <!-- 筛选结果提示，比如"已更新: 1950–2000" -->
             <span id="filterMsg" class="filter-msg"></span>
         </div>
     </header>
-    
 
+    <!--
+      ── 主内容区：仪表板 ───────────────────────
+      用 CSS Grid 分成左右两列，每个卡片是一个图表
+      所有图表占位符的 id 以 "chart" 开头，JS 通过 id 找到它们然后画图
+    -->
     <main class="dashboard">
-        <!-- Row 1 -->
+        <!--
+          第一行：横跨整行的大图
+          card-wide = 占满一整行（不是左右各一半）
+        -->
         <section class="card card-wide">
             <div class="card-title">全球温度变化趋势（陆地 / 海陆综合 / 最高 / 最低）</div>
+            <!-- 图表会画在这个 div 里 -->
             <div id="chartGlobalAnnual" class="chart-box" style="min-height:380px"></div>
+            <!-- 状态文字：显示"加载中..."或"加载完成"或报错信息 -->
             <div class="card-status" id="statusGlobal">⏳ 等待加载</div>
         </section>
+
+        <!-- 第一行右侧：温度距平柱状图（距平 = 偏离平均值的程度） -->
         <section class="card">
             <div class="card-title">全球温度距平</div>
             <div id="chartAnomaly" class="chart-box" style="min-height:380px"></div>
             <div class="card-status" id="statusAnomaly">⏳ 等待加载</div>
         </section>
 
-        <!-- Row 2 -->
+        <!--
+          第二行左侧：月均温季节周期
+          展示 1 月到 12 月每个月的平均温度，可以看出"夏天热冬天冷"的规律
+        -->
         <section class="card">
             <div class="card-title">全球月均温季节周期</div>
             <div id="chartMonthly" class="chart-box" style="min-height:380px"></div>
             <div class="card-status" id="statusMonthly">⏳ 等待加载</div>
         </section>
+
+        <!--
+          第二行右侧：世界地图
+          用颜色深浅表示各国温度，深红 = 热，深蓝 = 冷
+          带年份滑块，拖动可以看到不同年份的地图
+        -->
         <section class="card">
             <div class="card-title">全球各国平均温度</div>
             <div id="chartWorldMap" class="chart-box" style="min-height:420px"></div>
+            <!-- 年份滑块：拖动这个滑动条来切换年份 -->
             <div class="map-slider">
                 <label>年份：<span id="mapYearLabel">2024</span></label>
                 <input id="mapYearInput" type="range" min="1850" max="2024" value="2024" step="1" />
@@ -59,15 +106,24 @@
             <div class="card-status" id="statusMap">⏳ 等待加载</div>
         </section>
 
-        <!-- Row 3 -->
+        <!--
+          第三行左侧：纬度带温度趋势
+          把地球切成三块——热带、温带、寒带，对比它们的温度变化
+        -->
         <section class="card">
             <div class="card-title">纬度带温度变化趋势对比</div>
             <div id="chartLatband" class="chart-box" style="min-height:380px"></div>
             <div class="card-status" id="statusLatband">⏳ 等待加载</div>
         </section>
+
+        <!--
+          第三行右侧：城市温度排名
+          选择一个国家和年份，显示该国家最热的城市排行（前15名）
+        -->
         <section class="card">
             <div class="card-title">城市平均温度排名</div>
             <div id="stateTempChart" class="chart-box" style="min-height:380px"></div>
+            <!-- 城市筛选控件：年份输入框 + 国家下拉菜单 + 刷新按钮 -->
             <div class="city-controls">
                 <label>年份 <input id="stateYear" type="number" value="2024" min="1750" max="2024" /></label>
                 <label>国家 <select id="countrySelect">
@@ -85,10 +141,20 @@
         </section>
     </main>
 
+    <!--
+      ── 底部 ──────────────────────────────────
+      数据来源说明
+    -->
     <footer class="footer">
         数据来源：NASA GISTEMP v4 + Berkeley Earth &nbsp;|&nbsp; 数据范围：1750–2026
     </footer>
 
+    <!--
+      ── 加载 JS 脚本 ───────────────────────────
+      放在 body 最底部，这样 HTML 元素先加载完，JS 才能找到它们
+      dashboard.js：主要的仪表板逻辑（趋势图、距平图、月均温、地图、纬度带）
+      city.js：城市温度排名图
+    -->
     <script src="/static/js/dashboard.js"></script>
     <script src="/static/js/city.js"></script>
 </body>
